@@ -1,0 +1,5 @@
+{
+  "name": "Delta Green Handler AI",
+  "description": "An interactive web application to play the Delta Green TTRPG with an AI handler. Upload rulebooks for context, make choices, and descend into a world of cosmic horror and conspiracy. The AI generates narrative and options, while you control your agent's actions and dice rolls.",
+  "requestFramePermissions": []
+}
