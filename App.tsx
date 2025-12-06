@@ -1,22 +1,23 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-// Fix: Changed PlayerMessage to PlayerInputMessage as it's the correct exported type.
-import { ChatMessage, HandlerResponse, PlayerInputMessage } from './types';
+import { ChatMessage, HandlerResponse, PlayerInputMessage, Character } from './types';
 import { generateHandlerResponse, generateSummary } from './services/geminiService';
 import { BACKGROUND_IMAGES, INITIAL_HANDLER_MESSAGE } from './constants';
 import ChatWindow from './components/ChatWindow';
 import PlayerInput from './components/PlayerInput';
 import Toolbar from './components/Toolbar';
-import FileUpload from './components/FileUpload';
+import CampaignSetup from './components/CampaignSetup';
+import { GameData } from './components/CampaignSetup';
+import CharacterRoster from './components/CharacterRoster';
 
 const App: React.FC = () => {
   const [gameLog, setGameLog] = useState<ChatMessage[]>([INITIAL_HANDLER_MESSAGE]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [context, setContext] = useState<string>('');
   const [backgroundImage, setBackgroundImage] = useState<string>(BACKGROUND_IMAGES[0]);
-  const [currentChoices, setCurrentChoices] = useState<string[]>(INITIAL_HANDLER_MESSAGE.choices || []);
+  const [currentChoices, setCurrentChoices] = useState<string[]>([]);
   const [isAwaitingRoll, setIsAwaitingRoll] = useState<boolean>(false);
-  const [showFileUpload, setShowFileUpload] = useState<boolean>(true);
+  const [gameState, setGameState] = useState<'setup' | 'playing'>('setup');
+  const [characters, setCharacters] = useState<Character[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -26,11 +27,13 @@ const App: React.FC = () => {
   useEffect(() => {
     scrollToBottom();
   }, [gameLog, isLoading]);
-  
-  const handleChoice = (choice: string) => {
-     handlePlayerSubmit({ type: 'choice', content: choice });
-  };
 
+  const handleChoice = (choice: string) => {
+    // When a choice is made, assume Agent 1 is acting unless specified otherwise
+    const actingCharacter = characters[0] || { name: 'Agent 1', playerNumber: 1 };
+    handlePlayerSubmit({ type: 'choice', content: choice, characterName: actingCharacter.name, playerNumber: 1 });
+  };
+  
   const processResponse = useCallback((response: HandlerResponse | null) => {
     if (response) {
       setGameLog(prev => [...prev, { sender: 'handler', content: response.narrative, choices: response.choices }]);
@@ -39,7 +42,7 @@ const App: React.FC = () => {
     } else {
       const errorResponse: ChatMessage = {
         sender: 'handler',
-        content: "[OOC: An error occurred communicating with the Handler. Please check your API key and network connection, then try again.]",
+        content: "[OOC: An error occurred communicating with the Handler. Please try again.]",
         choices: currentChoices,
       };
       setGameLog(prev => [...prev, errorResponse]);
@@ -47,14 +50,14 @@ const App: React.FC = () => {
   }, [currentChoices]);
 
   const handlePlayerSubmit = useCallback(async (message: PlayerInputMessage) => {
-    const newLog: ChatMessage[] = [...gameLog, { sender: 'player', content: message.content }];
+    const newLog: ChatMessage[] = [...gameLog, { sender: 'player', content: message.content, playerNumber: message.playerNumber, characterName: message.characterName }];
     setGameLog(newLog);
     setCurrentChoices([]);
     setIsAwaitingRoll(false);
     setIsLoading(true);
 
     try {
-      const response = await generateHandlerResponse(newLog, context);
+      const response = await generateHandlerResponse(newLog, context, characters);
       processResponse(response);
     } catch (error) {
       console.error("Gemini API call failed:", error);
@@ -62,12 +65,39 @@ const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [gameLog, context, processResponse]);
+  }, [gameLog, context, processResponse, characters]);
+  
+  const handleGameStart = async (data: GameData) => {
+    setCharacters(data.characters);
 
-  const handleFileUpload = (content: string) => {
-    setContext(content);
-    setShowFileUpload(false);
-    handlePlayerSubmit({ type: 'ooc', content: '[OOC: Rulebooks uploaded. I am ready to begin the operation.]' });
+    let fullContext = "--- RULEBOOKS ---\n";
+    fullContext += data.rulebooks + "\n\n";
+
+    data.characters.forEach((char, index) => {
+        fullContext += `--- CHARACTER SHEET: AGENT ${index + 1} (${char.name}) ---\n`;
+        fullContext += char.sheet + "\n\n";
+    });
+
+    if (data.journal) {
+        fullContext += "--- CAMPAIGN JOURNAL (STORY SO FAR) ---\n";
+        fullContext += data.journal + "\n\n";
+    }
+
+    setContext(fullContext);
+    setGameState('playing');
+    
+    // Make initial call to get the story started
+    setIsLoading(true);
+    setGameLog([]); // Clear "System online" message
+    try {
+        const response = await generateHandlerResponse([], fullContext, data.characters);
+        processResponse(response);
+    } catch (error) {
+        console.error("Initial Gemini API call failed:", error);
+        processResponse(null);
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   const handleSummaryRequest = async () => {
@@ -82,7 +112,7 @@ const App: React.FC = () => {
       setGameLog(prev => [...prev, summaryMessage]);
     } catch (error) {
       console.error("Summary generation failed:", error);
-       const errorResponse: ChatMessage = {
+      const errorResponse: ChatMessage = {
         sender: 'handler',
         content: "[OOC: Failed to generate summary.]",
         choices: currentChoices
@@ -90,14 +120,6 @@ const App: React.FC = () => {
       setGameLog(prev => [...prev, errorResponse]);
     }
     setIsLoading(false);
-  };
-
-  const handleSummaryUpload = (summaryContent: string) => {
-     const summaryMessage: ChatMessage = {
-        sender: 'player',
-        content: `[OOC: Uploaded previous session summary for context.]\n\n---SUMMARY START---\n${summaryContent}\n---SUMMARY END---`,
-     };
-     handlePlayerSubmit({type: 'ooc', content: summaryMessage.content});
   };
 
   const changeBackground = () => {
@@ -112,38 +134,42 @@ const App: React.FC = () => {
       style={{ backgroundImage: `url(${backgroundImage})` }}
     >
       <div className="h-full w-full bg-black bg-opacity-70 flex flex-col">
-        <header className="w-full bg-black bg-opacity-50 backdrop-blur-sm p-3 flex justify-between items-center border-b border-gray-700 shadow-lg">
+        <header className="w-full bg-black bg-opacity-50 backdrop-blur-sm p-3 flex justify-between items-center border-b border-gray-700 shadow-lg z-10">
           <h1 className="text-xl md:text-2xl font-bold text-green-400 font-special-elite tracking-wider">
             DELTA GREEN: <span className="text-gray-300">HANDLER AI</span>
           </h1>
-          <Toolbar
-            onChangeBackground={changeBackground}
-            onSummaryRequest={handleSummaryRequest}
-            onSummaryUpload={handleSummaryUpload}
-          />
+          {gameState === 'playing' && (
+            <Toolbar
+                onChangeBackground={changeBackground}
+                onSummaryRequest={handleSummaryRequest}
+            />
+          )}
         </header>
         
-        {showFileUpload && (
-          <div className="flex-grow flex items-center justify-center p-4">
-            <FileUpload onFileUpload={handleFileUpload} />
+        {gameState === 'setup' ? (
+          <div className="flex-grow flex items-center justify-center p-4 overflow-y-auto">
+            <CampaignSetup onStartGame={handleGameStart} />
           </div>
-        )}
-
-        {!showFileUpload && (
-          <>
-            <main className="flex-grow overflow-y-auto p-4 md:p-6 space-y-4">
-                <ChatWindow gameLog={gameLog} isLoading={isLoading} onChoice={handleChoice} />
-                <div ref={chatEndRef} />
-            </main>
-            <footer className="p-4 bg-black bg-opacity-30 backdrop-blur-sm border-t border-gray-800">
-              <PlayerInput
-                onSubmit={handlePlayerSubmit}
-                isLoading={isLoading}
-                isAwaitingRoll={isAwaitingRoll}
-                hasChoices={currentChoices.length > 0}
-              />
-            </footer>
-          </>
+        ) : (
+          <div className="flex-grow flex overflow-hidden">
+            <aside className="w-48 hidden md:block bg-black bg-opacity-20 border-r border-gray-800 p-4 overflow-y-auto">
+              <CharacterRoster characters={characters} />
+            </aside>
+            <div className="flex-grow flex flex-col">
+              <main className="flex-grow overflow-y-auto p-4 md:p-6 space-y-4">
+                  <ChatWindow gameLog={gameLog} isLoading={isLoading} onChoice={handleChoice} />
+                  <div ref={chatEndRef} />
+              </main>
+              <footer className="p-4 bg-black bg-opacity-30 backdrop-blur-sm border-t border-gray-800">
+                <PlayerInput
+                  onSubmit={handlePlayerSubmit}
+                  isLoading={isLoading}
+                  isAwaitingRoll={isAwaitingRoll}
+                  characters={characters}
+                />
+              </footer>
+            </div>
+          </div>
         )}
       </div>
     </div>

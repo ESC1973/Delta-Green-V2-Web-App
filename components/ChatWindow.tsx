@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { ChatMessage } from '../types';
 
@@ -20,16 +19,21 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ gameLog, isLoading, onChoice })
 
   return (
     <div className="space-y-6">
-      {gameLog.map((msg, index) => (
-        <div key={index} className={`flex ${msg.sender === 'player' ? 'justify-end' : 'justify-start'}`}>
+      {gameLog.map((msg, index) => {
+        const isPlayer = msg.sender === 'player';
+        const content = msg.content;
+
+        return (
+        <div key={index} className={`flex ${isPlayer ? 'justify-end' : 'justify-start'}`}>
           <div
             className={`max-w-xl lg:max-w-3xl p-4 rounded-lg shadow-md ${
-              msg.sender === 'player'
+              isPlayer
                 ? 'bg-gray-800 text-gray-300 rounded-br-none'
                 : 'bg-gray-900 bg-opacity-50 border border-gray-700 text-gray-200 rounded-bl-none'
             }`}
           >
-            <p className="whitespace-pre-wrap">{msg.content}</p>
+            {isPlayer && msg.characterName && <div className="text-green-400 font-bold text-sm mb-1">{msg.characterName.toUpperCase()}</div>}
+            <p className="whitespace-pre-wrap">{content}</p>
             {msg.sender === 'handler' && msg.choices && msg.choices.length > 0 && index === gameLog.length - 1 && (
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2">
                 {msg.choices.map((choice, i) => (
@@ -45,7 +49,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ gameLog, isLoading, onChoice })
             )}
           </div>
         </div>
-      ))}
+      )})}
       {isLoading && (
          <div className="flex justify-start">
             <div className="max-w-xl p-4 rounded-lg shadow-md bg-gray-900 bg-opacity-50 border border-gray-700 text-gray-200 rounded-bl-none">

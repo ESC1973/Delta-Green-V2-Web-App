@@ -1,6 +1,5 @@
-
 import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
-import { ChatMessage, HandlerResponse } from '../types';
+import { ChatMessage, HandlerResponse, Character } from '../types';
 import { SYSTEM_PROMPT } from '../constants';
 
 if (!process.env.API_KEY) {
@@ -24,22 +23,25 @@ const responseSchema = {
 };
 
 function formatHistoryForPrompt(history: ChatMessage[]): string {
+    if (history.length === 0) {
+        return "The session has just begun. There is no history yet.";
+    }
     return history.map(msg => {
         if (msg.sender === 'handler') {
             return `HANDLER: ${msg.content}`;
         } else {
-            return `PLAYER: ${msg.content}`;
+            return `PLAYER (${msg.characterName}): ${msg.content}`;
         }
     }).join('\n');
 }
 
-export async function generateHandlerResponse(history: ChatMessage[], context: string): Promise<HandlerResponse | null> {
+export async function generateHandlerResponse(history: ChatMessage[], context: string, characters: Character[]): Promise<HandlerResponse | null> {
     const model = 'gemini-2.5-flash';
     
     const fullPrompt = `
 ${SYSTEM_PROMPT}
 
---- RULEBOOK/SETTING CONTEXT ---
+--- CAMPAIGN CONTEXT ---
 ${context}
 --- END CONTEXT ---
 
@@ -47,13 +49,12 @@ ${context}
 ${formatHistoryForPrompt(history)}
 --- END SESSION LOG ---
 
-Based on the last player action, provide the next narrative beat as the Handler.
+Based on the last player action (or lack thereof, if this is the first turn), provide the next narrative beat as the Handler.
 `;
 
     try {
         const response: GenerateContentResponse = await ai.models.generateContent({
             model: model,
-            // Fix: Simplified contents to pass the prompt string directly.
             contents: fullPrompt,
             config: {
                 responseMimeType: "application/json",
@@ -77,9 +78,9 @@ Based on the last player action, provide the next narrative beat as the Handler.
 export async function generateSummary(history: ChatMessage[], context: string): Promise<string> {
      const model = 'gemini-2.5-flash';
      const summaryPrompt = `
-You are a helpful assistant for the Delta Green Handler AI. Your task is to summarize the provided session log into a concise, bulleted list of key events, decisions, and discoveries. This summary will be used to provide context for future sessions.
+You are a helpful assistant for the Delta Green Handler AI. Your task is to summarize the provided session log into a concise, bulleted list of key events, decisions, and discoveries involving all agents. This summary will be used to create a campaign journal for future sessions.
 
---- RULEBOOK/SETTING CONTEXT (for your reference) ---
+--- CAMPAIGN CONTEXT (for your reference) ---
 ${context}
 --- END CONTEXT ---
 
@@ -93,7 +94,6 @@ Please generate the summary.
     try {
         const response: GenerateContentResponse = await ai.models.generateContent({
             model: model,
-            // Fix: Simplified contents to pass the prompt string directly.
             contents: summaryPrompt,
             config: {
                 temperature: 0.5,

@@ -1,30 +1,57 @@
-
 import React, { useState } from 'react';
-import { PlayerInputMessage } from '../types';
+import { PlayerInputMessage, Character } from '../types';
 
 interface PlayerInputProps {
   onSubmit: (message: PlayerInputMessage) => void;
   isLoading: boolean;
   isAwaitingRoll: boolean;
-  hasChoices: boolean;
+  characters: Character[];
 }
 
-const PlayerInput: React.FC<PlayerInputProps> = ({ onSubmit, isLoading, isAwaitingRoll, hasChoices }) => {
+const PlayerInput: React.FC<PlayerInputProps> = ({ onSubmit, isLoading, isAwaitingRoll, characters }) => {
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<'ic' | 'ooc'>('ic');
+  const [activePlayer, setActivePlayer] = useState<number>(1);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() && !isLoading) {
-      onSubmit({ type: isAwaitingRoll ? 'roll' : mode, content: `[${mode.toUpperCase()}] ${input}` });
+        const characterName = characters[activePlayer - 1]?.name || `Agent ${activePlayer}`;
+        const content = input;
+        onSubmit({ 
+            type: isAwaitingRoll ? 'roll' : mode, 
+            content: content,
+            playerNumber: activePlayer,
+            characterName: characterName
+        });
       setInput('');
     }
   };
 
-  const isDisabled = isLoading || hasChoices;
+  const isDisabled = isLoading;
+
+  let placeholderText = "Describe your agent's action (IC) or ask a question (OOC)...";
+  if (isAwaitingRoll) {
+    placeholderText = "The Handler is waiting. Enter dice roll result and describe the action...";
+  } else if (isLoading) {
+    placeholderText = "Waiting for the Handler...";
+  }
+
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col md:flex-row items-center gap-2">
+      {characters.length > 0 && !isAwaitingRoll && (
+          <select
+            value={activePlayer}
+            onChange={(e) => setActivePlayer(Number(e.target.value))}
+            className="bg-gray-700 text-gray-300 rounded-md p-3 focus:outline-none w-full md:w-auto"
+            disabled={isDisabled}
+          >
+            {characters.map((char, i) => (
+                <option key={i + 1} value={i + 1}>{char.name}</option>
+            ))}
+          </select>
+      )}
       <div className="relative flex-grow w-full">
         <textarea
           value={input}
@@ -35,13 +62,7 @@ const PlayerInput: React.FC<PlayerInputProps> = ({ onSubmit, isLoading, isAwaiti
                   handleSubmit(e);
               }
           }}
-          placeholder={
-            isAwaitingRoll 
-              ? "The Handler is waiting. Enter your dice roll result and describe the action..." 
-              : isDisabled 
-                ? "Select a choice above or wait for the Handler..." 
-                : "Describe your agent's action (IC) or ask a question (OOC)..."
-          }
+          placeholder={placeholderText}
           className="w-full p-3 pr-24 bg-gray-800 border border-gray-600 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all text-gray-200 resize-none"
           rows={1}
           disabled={isDisabled}
@@ -66,7 +87,7 @@ const PlayerInput: React.FC<PlayerInputProps> = ({ onSubmit, isLoading, isAwaiti
       <button
         type="submit"
         className="w-full md:w-auto px-6 py-3 bg-green-600 text-white font-bold rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
-        disabled={isDisabled}
+        disabled={isDisabled || !input.trim()}
       >
         Send
       </button>
