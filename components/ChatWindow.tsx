@@ -17,6 +17,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ gameLog, isLoading, onChoice })
         </div>
     );
 
+    const parseMarkdown = (text: string) => {
+        // Simple parser for **bold** text.
+        const bolded = text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-green-300">$1</strong>');
+        return { __html: bolded };
+    };
+
   return (
     <div className="space-y-6">
       {gameLog.map((msg, index) => {
@@ -33,7 +39,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ gameLog, isLoading, onChoice })
             }`}
           >
             {isPlayer && msg.characterName && <div className="text-green-400 font-bold text-sm mb-1">{msg.characterName.toUpperCase()}</div>}
-            <p className="whitespace-pre-wrap">{content}</p>
+            <div className="whitespace-pre-wrap" dangerouslySetInnerHTML={parseMarkdown(content)} />
             {msg.sender === 'handler' && msg.choices && msg.choices.length > 0 && index === gameLog.length - 1 && (
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2">
                 {msg.choices.map((choice, i) => (
