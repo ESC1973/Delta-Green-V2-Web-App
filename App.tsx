@@ -29,8 +29,7 @@ const App: React.FC = () => {
   }, [gameLog, isLoading]);
 
   const handleChoice = (choice: string) => {
-    // When a choice is made, assume Agent 1 is acting unless specified otherwise
-    const actingCharacter = characters[0] || { name: 'Agent 1', playerNumber: 1 };
+    const actingCharacter = characters[0] || { name: 'Unknown Agent', imageUrl: '', sheet: '' };
     handlePlayerSubmit({ type: 'choice', content: choice, characterName: actingCharacter.name, playerNumber: 1 });
   };
   
@@ -72,6 +71,11 @@ const App: React.FC = () => {
 
     let fullContext = "--- RULEBOOKS ---\n";
     fullContext += data.rulebooks + "\n\n";
+    
+    if (data.mythicRulebook) {
+        fullContext += "--- MYTHIC GME RULEBOOK ---\n";
+        fullContext += data.mythicRulebook + "\n\n";
+    }
 
     data.characters.forEach((char, index) => {
         fullContext += `--- CHARACTER SHEET: AGENT ${index + 1} (${char.name}) ---\n`;
@@ -128,13 +132,23 @@ const App: React.FC = () => {
     setBackgroundImage(BACKGROUND_IMAGES[nextIndex]);
   };
 
+  const handleRestart = () => {
+    setGameState('setup');
+    setGameLog([INITIAL_HANDLER_MESSAGE]);
+    setCharacters([]);
+    setContext('');
+    setCurrentChoices([]);
+    setIsAwaitingRoll(false);
+    setIsLoading(false);
+  };
+
   return (
     <div
       className="h-screen w-screen bg-cover bg-center bg-fixed transition-all duration-1000"
       style={{ backgroundImage: `url(${backgroundImage})` }}
     >
       <div className="h-full w-full bg-black bg-opacity-70 flex flex-col">
-        <header className="w-full bg-black bg-opacity-50 backdrop-blur-sm p-3 flex justify-between items-center border-b border-gray-700 shadow-lg z-10">
+        <header className="w-full bg-black bg-opacity-50 backdrop-blur-sm p-3 flex justify-between items-center border-b border-gray-700 shadow-lg z-20 shrink-0">
           <h1 className="text-xl md:text-2xl font-bold text-green-400 font-special-elite tracking-wider">
             DELTA GREEN: <span className="text-gray-300">HANDLER AI</span>
           </h1>
@@ -142,20 +156,29 @@ const App: React.FC = () => {
             <Toolbar
                 onChangeBackground={changeBackground}
                 onSummaryRequest={handleSummaryRequest}
+                onRestart={handleRestart}
             />
           )}
         </header>
         
         {gameState === 'setup' ? (
-          <div className="flex-grow flex items-center justify-center p-4 overflow-y-auto">
-            <CampaignSetup onStartGame={handleGameStart} />
-          </div>
+           <div className="flex-grow flex flex-col md:flex-row overflow-hidden">
+            <div className="w-full md:w-1/3 lg:w-1/4 p-4 overflow-y-auto bg-black bg-opacity-10 border-r border-gray-800">
+                <CampaignSetup onStartGame={handleGameStart} />
+            </div>
+            <div className="flex-grow flex items-center justify-center p-4">
+                <div className="text-center">
+                    <h2 className="text-4xl font-special-elite text-gray-400">Welcome, Handler.</h2>
+                    <p className="mt-4 text-gray-500">Prepare your operation files to begin.</p>
+                </div>
+            </div>
+        </div>
         ) : (
-          <div className="flex-grow flex overflow-hidden">
-            <aside className="w-48 hidden md:block bg-black bg-opacity-20 border-r border-gray-800 p-4 overflow-y-auto">
-              <CharacterRoster characters={characters} />
-            </aside>
-            <div className="flex-grow flex flex-col">
+          <div className="flex-grow flex flex-col md:flex-row overflow-hidden">
+            <div className="flex-grow flex flex-col w-full md:w-1/2 overflow-hidden">
+                 <header className="w-full bg-black bg-opacity-20 p-2 border-b border-r border-gray-800 md:hidden">
+                    <CharacterRoster characters={characters} />
+                </header>
               <main className="flex-grow overflow-y-auto p-4 md:p-6 space-y-4">
                   <ChatWindow gameLog={gameLog} isLoading={isLoading} onChoice={handleChoice} />
                   <div ref={chatEndRef} />
@@ -169,6 +192,9 @@ const App: React.FC = () => {
                 />
               </footer>
             </div>
+            <aside className="w-full md:w-1/2 bg-black bg-opacity-20 border-l border-gray-800 p-4 overflow-y-auto">
+                 <p>Mythic GME Panel placeholder</p>
+            </aside>
           </div>
         )}
       </div>

@@ -16,7 +16,7 @@ const PlayerInput: React.FC<PlayerInputProps> = ({ onSubmit, isLoading, isAwaiti
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() && !isLoading) {
-        const characterName = characters[activePlayer - 1]?.name || `Agent ${activePlayer}`;
+        const characterName = characters[activePlayer - 1]?.name || `Unknown Agent`;
         const content = input;
         onSubmit({ 
             type: isAwaitingRoll ? 'roll' : mode, 
@@ -40,7 +40,7 @@ const PlayerInput: React.FC<PlayerInputProps> = ({ onSubmit, isLoading, isAwaiti
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col md:flex-row items-center gap-2">
-      {characters.length > 0 && !isAwaitingRoll && (
+      {characters.length > 0 && (
           <select
             value={activePlayer}
             onChange={(e) => setActivePlayer(Number(e.target.value))}
@@ -48,7 +48,7 @@ const PlayerInput: React.FC<PlayerInputProps> = ({ onSubmit, isLoading, isAwaiti
             disabled={isDisabled}
           >
             {characters.map((char, i) => (
-                <option key={i + 1} value={i + 1}>{char.name}</option>
+                <option key={i + 1} value={i + 1}>{char.name || 'Unknown Agent'}</option>
             ))}
           </select>
       )}

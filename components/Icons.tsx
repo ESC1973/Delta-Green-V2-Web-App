@@ -17,3 +17,9 @@ export const BackgroundIcon: React.FC<{ className?: string }> = ({ className }) 
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
   </svg>
 );
+
+export const RestartIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 3a9 9 0 0 1 0 18M3 13a9 9 0 0 1 1-5M3 3l3.5 3.5M15 21l-3.5-3.5" />
+    </svg>
+);

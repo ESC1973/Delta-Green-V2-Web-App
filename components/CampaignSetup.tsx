@@ -1,14 +1,17 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { UploadIcon } from './Icons';
 import { Character } from '../types';
+import { PLACEHOLDER_IMAGE } from '../constants';
 
 export interface GameData {
   characters: Character[];
   journal: string | null;
   rulebooks: string;
+  // FIX: Add mythicRulebook to GameData type to support optional Mythic GME rulebook file.
+  mythicRulebook: string | null;
 }
 
-interface FileUploadProps {
+interface CampaignSetupProps {
   onStartGame: (data: GameData) => void;
 }
 
@@ -32,45 +35,39 @@ const readFileAsDataURL = (file: File): Promise<string> => {
 
 const parseNameFromSheet = (sheetContent: string): string => {
     if (!sheetContent) return "";
-    // Clean up potential non-standard characters from PDF-to-text conversion, like form feed (\f).
-    const cleanedContent = sheetContent.replace(/\f/g, '\n');
-    const lines = cleanedContent.split(/\r?\n/);
+    // Clean content of non-standard characters like form feed, which can come from PDF copies
+    const cleanedContent = sheetContent.replace(/\f/g, ''); 
+    const lines = cleanedContent.split('\n');
     
-    // Look for the line containing "LAST NAME, FIRST NAME" and get the next non-empty line.
     const nameLabelIndex = lines.findIndex(line => 
         line.toUpperCase().includes('LAST NAME, FIRST NAME')
     );
 
     if (nameLabelIndex !== -1 && nameLabelIndex + 1 < lines.length) {
-        for (let i = nameLabelIndex + 1; i < lines.length; i++) {
-            const potentialName = lines[i].trim();
-            if (potentialName) {
-                // Handle "Last, First M." format by extracting the first name.
-                const parts = potentialName.split(',');
-                if (parts.length > 1) {
-                    const firstName = parts[1].trim().split(' ')[0];
-                    return `${firstName} ${parts[0].trim()}`;
-                }
-                return potentialName; // Return full line if not in "Last, First" format
-            }
+        // The name is usually on the line directly after the label.
+        const nameLine = lines[nameLabelIndex + 1].trim();
+        if (nameLine) {
+            // Basic cleanup for names, removing potential numbering like "1. "
+            return nameLine.replace(/^\d+\.\s*/, '').trim();
         }
     }
-
-    // Fallback for "NAME:" format
-    const nameLine = lines.find(line => line.toUpperCase().startsWith('NAME:'));
-    if (nameLine) {
-        return nameLine.substring(5).trim();
+    
+    // Fallback for "NAME: ..." format
+    const nameLineDirect = lines.find(line => line.toUpperCase().startsWith('NAME:'));
+    if (nameLineDirect) {
+        return nameLineDirect.substring(5).trim();
     }
 
-    return ""; // Return empty string if not found, allowing manual input
+    return "";
 };
 
-
-const CampaignSetup: React.FC<FileUploadProps> = ({ onStartGame }) => {
+const CampaignSetup: React.FC<CampaignSetupProps> = ({ onStartGame }) => {
     const [mode, setMode] = useState<'new' | 'continue' | null>(null);
     const [playerCount, setPlayerCount] = useState<number>(1);
     const [charData, setCharData] = useState<{sheet: File | null, image: File | null, name: string}[]>(Array(1).fill({sheet: null, image: null, name: ''}));
     const [journalFile, setJournalFile] = useState<File | null>(null);
+    // FIX: Add state to manage the uploaded Mythic GME rulebook file.
+    const [mythicRulebookFile, setMythicRulebookFile] = useState<File | null>(null);
     const [rulebookFiles, setRulebookFiles] = useState<File[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
 
@@ -78,7 +75,7 @@ const CampaignSetup: React.FC<FileUploadProps> = ({ onStartGame }) => {
         const count = Math.max(1, Math.min(8, Number(e.target.value)));
         setPlayerCount(count);
         setCharData(current => {
-            const newData = Array(count).fill({sheet: null, image: null, name: ''});
+            const newData = Array(count).fill({}).map(() => ({sheet: null, image: null, name: ''}));
             for(let i=0; i< Math.min(current.length, count); i++) {
                 newData[i] = current[i];
             }
@@ -96,7 +93,7 @@ const CampaignSetup: React.FC<FileUploadProps> = ({ onStartGame }) => {
                 newData[index].name = parsedName;
             } catch (e) {
                 console.error("Error reading sheet file:", e);
-                newData[index].name = ""; // Clear name on error
+                newData[index].name = "";
             }
         }
         setCharData(newData);
@@ -108,13 +105,22 @@ const CampaignSetup: React.FC<FileUploadProps> = ({ onStartGame }) => {
         setCharData(newData);
     };
 
-    const isReady = useMemo(() => {
-        if (!mode) return false;
-        const hasRulebooks = rulebookFiles.length > 0;
-        const allCharsReady = charData.every(data => data.sheet !== null && data.image !== null && data.name.trim() !== '');
-        const hasJournal = mode === 'continue' ? journalFile !== null : true;
-        return hasRulebooks && allCharsReady && hasJournal;
-    }, [rulebookFiles, charData, journalFile, mode]);
+    const requirements = useMemo(() => {
+        let reqs: {label: string, met: boolean}[] = [];
+        if (!mode) return reqs;
+
+        reqs.push({ label: 'At least one rulebook file', met: rulebookFiles.length > 0 });
+        if (mode === 'continue') {
+            reqs.push({ label: 'A campaign journal file', met: journalFile !== null });
+        }
+        charData.forEach((data, i) => {
+            reqs.push({ label: `Agent ${i+1}: Name is entered`, met: data.name.trim() !== '' });
+            reqs.push({ label: `Agent ${i+1}: Character sheet is uploaded`, met: data.sheet !== null });
+        });
+        return reqs;
+    }, [mode, rulebookFiles, journalFile, charData]);
+
+    const isReady = useMemo(() => requirements.every(r => r.met), [requirements]);
 
     const handleStart = async () => {
         if (!isReady) return;
@@ -124,33 +130,22 @@ const CampaignSetup: React.FC<FileUploadProps> = ({ onStartGame }) => {
             
             const characters: Character[] = await Promise.all(charData.map(async (data) => {
                 const sheet = await readFileAsText(data.sheet!);
-                const imageUrl = await readFileAsDataURL(data.image!);
-                return { name: data.name, sheet, imageUrl };
+                const imageUrl = data.image ? await readFileAsDataURL(data.image) : PLACEHOLDER_IMAGE;
+                return { name: data.name.trim(), sheet, imageUrl };
             }));
 
             const journal = journalFile ? await readFileAsText(journalFile) : null;
+            // FIX: Read content from mythic rulebook file if it exists.
+            const mythicRulebook = mythicRulebookFile ? await readFileAsText(mythicRulebookFile) : null;
             
-            onStartGame({ characters, journal, rulebooks });
+            // FIX: Pass mythicRulebook to onStartGame.
+            onStartGame({ characters, journal, rulebooks, mythicRulebook });
         } catch (error) {
             console.error("Error processing files:", error);
             alert("There was an error reading the files. Please try again.");
             setIsProcessing(false);
         }
     };
-
-    const FileInput: React.FC<{ label: string; fileName: string | null; onChange: (files: FileList | null) => void; accepted: string; id: string; multiple?: boolean; }> = 
-    ({ label, fileName, onChange, accepted, id, multiple }) => (
-        <div className="py-2">
-            <label className="block text-xs font-medium text-gray-400 mb-1">{label}</label>
-            <label htmlFor={id} className="w-full text-sm p-2 bg-gray-700 border border-gray-600 rounded-md flex items-center justify-between cursor-pointer hover:bg-gray-600">
-                <span className="text-gray-300 truncate pr-2">
-                    {fileName || 'No file selected'}
-                </span>
-                <UploadIcon className="w-5 h-5 text-green-400 flex-shrink-0"/>
-            </label>
-            <input id={id} type="file" className="sr-only" accept={accepted} onChange={e => onChange(e.target.files)} multiple={multiple} />
-        </div>
-    );
     
   return (
     <div className="w-full max-w-2xl p-6 md:p-8 bg-gray-800 bg-opacity-80 backdrop-blur-md border border-gray-700 rounded-lg shadow-2xl text-gray-300">
@@ -175,21 +170,62 @@ const CampaignSetup: React.FC<FileUploadProps> = ({ onStartGame }) => {
                 {Array.from({ length: playerCount }).map((_, i) => (
                   <div key={i} className="p-2 border border-gray-600 rounded-md my-2">
                       <p className="font-bold text-center text-green-400">Agent {i+1}</p>
-                      <FileInput id={`char-sheet-${i}`} label={`Sheet (.txt)`} fileName={charData[i]?.sheet?.name || null} onChange={fl => handleCharFileChange(i, 'sheet', fl?.[0] || null)} accepted=".txt" />
-                      <FileInput id={`char-image-${i}`} label={`Portrait (image)`} fileName={charData[i]?.image?.name || null} onChange={fl => handleCharFileChange(i, 'image', fl?.[0] || null)} accepted="image/*" />
+                      
+                       <div className="py-2">
+                          <label className="block text-xs font-medium text-gray-400 mb-1">Sheet (.txt)</label>
+                          <label htmlFor={`char-sheet-${i}`} className="w-full text-sm p-2 bg-gray-700 border border-gray-600 rounded-md flex items-center justify-between cursor-pointer hover:bg-gray-600">
+                              <span className="text-gray-300 truncate pr-2">{charData[i]?.sheet?.name || 'No file selected'}</span>
+                              <UploadIcon className="w-5 h-5 text-green-400 flex-shrink-0"/>
+                          </label>
+                          <input id={`char-sheet-${i}`} type="file" className="sr-only" accept=".txt" onChange={e => handleCharFileChange(i, 'sheet', e.target.files?.[0] || null)} />
+                      </div>
+
+                       <div className="py-2">
+                          <label className="block text-xs font-medium text-gray-400 mb-1">Portrait (image - optional)</label>
+                          <label htmlFor={`char-image-${i}`} className="w-full text-sm p-2 bg-gray-700 border border-gray-600 rounded-md flex items-center justify-between cursor-pointer hover:bg-gray-600">
+                              <span className="text-gray-300 truncate pr-2">{charData[i]?.image?.name || 'No file selected'}</span>
+                              <UploadIcon className="w-5 h-5 text-green-400 flex-shrink-0"/>
+                          </label>
+                          <input id={`char-image-${i}`} type="file" className="sr-only" accept="image/*" onChange={e => handleCharFileChange(i, 'image', e.target.files?.[0] || null)} />
+                      </div>
+
                       <div>
-                        <label htmlFor={`char-name-${i}`} className="block text-xs font-medium text-gray-400 mb-1">Agent Name (auto-filled or manual)</label>
-                        <input id={`char-name-${i}`} type="text" value={charData[i]?.name} onChange={e => handleNameChange(i, e.target.value)} placeholder="Enter name or upload sheet" className="mt-1 w-full p-2 bg-gray-700 border border-gray-600 rounded-md text-sm"/>
+                        <label htmlFor={`char-name-${i}`} className="block text-xs font-medium text-gray-400 mb-1">Agent Name</label>
+                        <input id={`char-name-${i}`} type="text" value={charData[i]?.name} onChange={e => handleNameChange(i, e.target.value)} placeholder="Type name or upload sheet to auto-fill" className="mt-1 w-full p-2 bg-gray-700 border border-gray-600 rounded-md text-sm"/>
                       </div>
                   </div>
                 ))}
             </div>
 
             {mode === 'continue' && (
-                <FileInput id="journal-file" label="Campaign Journal (.txt)" fileName={journalFile?.name || null} onChange={fl => setJournalFile(fl?.[0] || null)} accepted=".txt" />
+                <div className="py-2">
+                    <label className="block text-xs font-medium text-gray-400 mb-1">Campaign Journal (.txt)</label>
+                    <label htmlFor="journal-file" className="w-full text-sm p-2 bg-gray-700 border border-gray-600 rounded-md flex items-center justify-between cursor-pointer hover:bg-gray-600">
+                        <span className="text-gray-300 truncate pr-2">{journalFile?.name || 'No file selected'}</span>
+                        <UploadIcon className="w-5 h-5 text-green-400 flex-shrink-0"/>
+                    </label>
+                    <input id="journal-file" type="file" className="sr-only" accept=".txt" onChange={e => setJournalFile(e.target.files?.[0] || null)} />
+                </div>
             )}
 
-            <FileInput id="rulebook-files" label="Rulebook(s) (.txt)" fileName={rulebookFiles.length > 0 ? `${rulebookFiles.length} file(s)` : null} onChange={fl => setRulebookFiles(fl ? Array.from(fl) : [])} multiple accepted=".txt" />
+            {/* FIX: Add file input for optional Mythic GME rulebook. */}
+            <div className="py-2">
+                <label className="block text-xs font-medium text-gray-400 mb-1">Mythic GME Rulebook (.txt - optional)</label>
+                <label htmlFor="mythic-rulebook-file" className="w-full text-sm p-2 bg-gray-700 border border-gray-600 rounded-md flex items-center justify-between cursor-pointer hover:bg-gray-600">
+                    <span className="text-gray-300 truncate pr-2">{mythicRulebookFile?.name || 'No file selected'}</span>
+                    <UploadIcon className="w-5 h-5 text-green-400 flex-shrink-0"/>
+                </label>
+                <input id="mythic-rulebook-file" type="file" className="sr-only" accept=".txt" onChange={e => setMythicRulebookFile(e.target.files?.[0] || null)} />
+            </div>
+
+            <div className="py-2">
+                <label className="block text-xs font-medium text-gray-400 mb-1">Rulebook(s) (.txt)</label>
+                <label htmlFor="rulebook-files" className="w-full text-sm p-2 bg-gray-700 border border-gray-600 rounded-md flex items-center justify-between cursor-pointer hover:bg-gray-600">
+                    <span className="text-gray-300 truncate pr-2">{rulebookFiles.length > 0 ? `${rulebookFiles.length} file(s) selected` : 'No files selected'}</span>
+                    <UploadIcon className="w-5 h-5 text-green-400 flex-shrink-0"/>
+                </label>
+                <input id="rulebook-files" type="file" className="sr-only" accept=".txt" multiple onChange={e => setRulebookFiles(e.target.files ? Array.from(e.target.files) : [])} />
+            </div>
           
             <button
                 onClick={handleStart}
@@ -198,6 +234,15 @@ const CampaignSetup: React.FC<FileUploadProps> = ({ onStartGame }) => {
             >
                 {isProcessing ? 'Processing...' : (mode === 'new' ? 'Start Operation' : 'Continue Operation')}
             </button>
+            
+            {!isReady && !isProcessing && mode && (
+                <div className="mt-4 p-3 bg-gray-900 border border-yellow-700 rounded-md text-sm">
+                    <p className="font-bold text-yellow-400 mb-2">Missing Requirements:</p>
+                    <ul className="list-disc list-inside space-y-1 text-yellow-300">
+                        {requirements.filter(r => !r.met).map((r, i) => <li key={i}>{r.label}</li>)}
+                    </ul>
+                </div>
+            )}
         </div>
       )}
     </div>

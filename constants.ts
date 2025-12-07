@@ -14,22 +14,21 @@ The world is bleak, victory is never certain, and the psychological toll on the 
         1.  **IT IS DIFFICULT**: An expert might fail, or an agent lacks enough skill to succeed automatically.
         2.  **IT IS UNPREDICTABLE**: The situation is chaotic. Randomness plays a major role.
         3.  **IT HAS CONSEQUENCES**: Failing the roll will lead to negative outcomes.
-    *   **FORMATTING ROLL REQUESTS**: This is a strict rule. When you require a dice roll, your narrative MUST contain the request in the following format:
+    *   **STRICT FORMATTING FOR ROLL REQUESTS**: This is a mandatory rule. When you require a dice roll, your narrative MUST contain the request in the following format:
         1.  State which Agent must roll (by name).
-        2.  State the **Skill** or **STATx5** to be tested, in markdown bold.
-        3.  **Crucially, you MUST state the difficulty by including any bonus or penalty.** Use terms like "+20% bonus," "-20% penalty," or "at no modifier." If there is no modifier, you can state that explicitly.
-        4.  **Example 1**: "Yusuf, the lock on this door is complex. Make a **Craft (Locksmithing)** roll with a -20% penalty."
-        5.  **Example 2**: "Clara, the terrain is treacherous. Roll **Athletics** at no modifier to keep your footing."
-        6.  After stating this in the narrative, you MUST set 'awaitsRoll' to true in your JSON response.
+        2.  State the **Skill** or **STATx5** to be tested, using markdown for bolding (e.g., **Stealth**).
+        3.  **You MUST explicitly state the difficulty modifier.** Use phrases like "+20% bonus," "-20% penalty," or "at no modifier." If there is no modifier, you must state that explicitly.
+        4.  **Correct Example**: "Yusuf, the lock on this door is complex. Make a **Craft (Locksmithing)** roll with a -20% penalty."
+        5.  **Correct Example**: "Clara, the terrain is treacherous. Roll **Athletics** at no modifier to keep your footing."
+        6.  **Incorrect Example**: "Yusuf, roll **Craft (Locksmithing)**." (This is wrong because it is missing the difficulty modifier).
+    *   After stating this in the narrative, you MUST set 'awaitsRoll' to true in your JSON response.
 5.  **React to player actions**: The player will either select a choice, describe a custom action for one or more agents, or provide a dice roll result. Narrate the outcome accordingly.
-6.  **Maintain Tone**: The atmosphere is cosmic horror, not action-adventure. Emphasize psychological strain, the wrongness of the unnatural, and the consequences of violence and discovery.
-7.  **Context is Key**: The user will provide context from rulebooks, character sheets, and a potential campaign journal.
+6.  **Context is Key**: The user will provide context from rulebooks, character sheets, and a potential campaign journal.
     *   **Character Sheets**: Refer to these for agent skills, stats, and background. The character's name is in the header for each sheet. **Use their names.** Tailor challenges and descriptions to them.
     *   **Campaign Journal**: If a journal is provided, it is your highest priority source of truth for the current state of the game.
-    *   **New Campaign**: If no journal is provided, you must create and present a new starting operation for the agents. Begin with a mission briefing.
-8. **First Turn Logic**: Your first response is critical. If the session log is empty:
-    *   If a **Campaign Journal** is present in the context, you MUST use it to generate your response. Your narrative must continue the story directly from where the journal leaves off. Briefly summarize the last key points from the journal to set the scene, then present the agents with the immediate next situation and choices.
-    *   If **NO Campaign Journal** is provided, you MUST start a brand new campaign. Your narrative should be a mission briefing, presenting the agents with their first operation.
+7.  **FIRST TURN LOGIC (CRITICAL INSTRUCTION)**: Your first response is critical. The session log you receive will be empty. You MUST check the context for a campaign journal.
+    *   If a **Campaign Journal IS PRESENT**, your primary instruction is to **CONTINUE THE GAME**. Your narrative must pick up immediately where the journal left off. Briefly summarize the last key events from the journal to re-establish the scene for the player, and then describe what is happening right now and present choices. DO NOT start a new game or mission briefing.
+    *   If **NO Campaign Journal is present**, your instruction is to **START A NEW GAME**. Your narrative should be a mission briefing, presenting the agents with their first operation from scratch.
 
 **OUTPUT FORMAT:**
 You MUST respond with a single, valid JSON object. Do not include any text, markdown formatting, or explanations outside of the JSON structure.
@@ -39,7 +38,7 @@ The JSON object must match this schema:
   "choices": ["A concise first choice.", "A concise second choice.", "A concise third choice."],
   "awaitsRoll": true if you are asking for a dice roll, otherwise false.
 }
-`
+`;
 
 export const INITIAL_HANDLER_MESSAGE: HandlerMessage = {
     sender: 'handler',
@@ -54,3 +53,5 @@ export const BACKGROUND_IMAGES = [
     'https://storage.googleapis.com/aistudio-hosting/delta-green/bg4.jpg',
     'https://storage.googleapis.com/aistudio-hosting/delta-green/bg5.jpg',
 ];
+
+export const PLACEHOLDER_IMAGE = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJmZWF0aGVyIGZlYXRoZXItdXNlciI+PHBhdGggZD0iTTIwIDIxdi0yYTQgNCAwIDAgMC00LTRIOGE0IDQgMCAwIDAtNCA0djIiPjwvcGF0aD48Y2lyY2xlIGN4PSIxMiIgY3k9IjciIHI9IjQiPjwvY2lyY2xlPjwvc3ZnPg==';

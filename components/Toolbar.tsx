@@ -1,12 +1,13 @@
 import React from 'react';
-import { SummaryIcon, BackgroundIcon } from './Icons';
+import { SummaryIcon, BackgroundIcon, RestartIcon } from './Icons';
 
 interface ToolbarProps {
   onChangeBackground: () => void;
   onSummaryRequest: () => void;
+  onRestart: () => void;
 }
 
-const Toolbar: React.FC<ToolbarProps> = ({ onChangeBackground, onSummaryRequest }) => {
+const Toolbar: React.FC<ToolbarProps> = ({ onChangeBackground, onSummaryRequest, onRestart }) => {
   const TooltipButton: React.FC<{ onClick: () => void; tooltip: string; children: React.ReactNode }> = ({ onClick, tooltip, children }) => (
     <div className="relative group">
       <button
@@ -23,6 +24,9 @@ const Toolbar: React.FC<ToolbarProps> = ({ onChangeBackground, onSummaryRequest 
 
   return (
     <div className="flex items-center space-x-2">
+       <TooltipButton onClick={onRestart} tooltip="Restart Operation">
+        <RestartIcon className="h-5 w-5" />
+      </TooltipButton>
       <TooltipButton onClick={onSummaryRequest} tooltip="Request Summary">
         <SummaryIcon className="h-5 w-5" />
       </TooltipButton>
