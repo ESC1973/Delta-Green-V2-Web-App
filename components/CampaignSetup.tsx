@@ -183,7 +183,7 @@ const CampaignSetup: React.FC<CampaignSetupProps> = ({ onStartGame }) => {
                   <div key={i} className="p-3 border border-gray-600 rounded-md">
                       <p className="font-bold text-center text-green-400">Agent {i+1}</p>
                       
-                        <FileInput id={`char-sheet-${i}`} label="Sheet (.txt)" file={charData[i]?.sheet} onChange={files => handleCharFileChange(i, 'sheet', files[0] || null)} />
+                        <FileInput id={`char-sheet-${i}`} label="Sheet (.txt, .md)" file={charData[i]?.sheet} onChange={files => handleCharFileChange(i, 'sheet', files[0] || null)} accept=".txt, .md" />
                         <FileInput id={`char-image-${i}`} label="Portrait (image - optional)" file={charData[i]?.image} onChange={files => handleCharFileChange(i, 'image', files[0] || null)} accept="image/*"/>
 
                       <div>
@@ -194,9 +194,9 @@ const CampaignSetup: React.FC<CampaignSetupProps> = ({ onStartGame }) => {
                 ))}
             </div>
 
-            {mode === 'continue' && <FileInput id="journal-file" label="Campaign Journal (.txt)" file={journalFile} onChange={files => setJournalFile(files[0] || null)} />}
+            {mode === 'continue' && <FileInput id="journal-file" label="Campaign Journal (.txt, .md)" file={journalFile} onChange={files => setJournalFile(files[0] || null)} accept=".txt, .md" />}
             
-            <FileInput id="rulebook-files" label="Rulebook(s) (.txt)" file={rulebookFiles} onChange={setRulebookFiles} multiple />
+            <FileInput id="rulebook-files" label="Rulebook(s) (.txt, .md)" file={rulebookFiles} onChange={setRulebookFiles} multiple accept=".txt, .md" />
           
             <button
                 onClick={handleStart}
